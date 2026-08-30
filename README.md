@@ -53,6 +53,21 @@ npm run preview    # serve the production build locally
 
 Icons are checked in; regenerate with `node scripts/generate-icons.mjs`.
 
+## Deployment (GitHub Pages)
+
+Every push to `main` runs `.github/workflows/deploy-pages.yml`: it installs
+dependencies, runs the test suite, builds, and deploys `dist/` to GitHub
+Pages. The app is served at:
+
+**https://retog.github.io/startlex/**
+
+The build uses a relative base (`./`), so it works both at a domain root
+and under the `/startlex/` project subpath (service-worker scope, offline
+precache and manifest icons verified under the subpath). The workflow
+enables Pages ("Source: GitHub Actions") automatically on its first run; if
+that step is denied by repository permissions, set it once manually under
+*Settings → Pages → Build and deployment → Source: GitHub Actions*.
+
 ## Installing the PWA
 
 1. Serve `dist/` over HTTPS (or use `npm run preview` / localhost).
