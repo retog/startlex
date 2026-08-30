@@ -28,7 +28,7 @@ unsounded trials, number of rated trials.
 Context: anticipatory anxiety (check-in), pauses during the block, last
 increased dimension, increases already granted this session, whether the
 previous session struggled, personal max intensity, unlocked predictability
-cap (MVP: `window-wide`).
+cap (currently `background`, the top of the ladder).
 
 ## Decision rules (in order)
 

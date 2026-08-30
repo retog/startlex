@@ -91,6 +91,8 @@ describe('ExposureEngine — randomized delay windows', () => {
     [PredictabilityMode.WindowNarrow],
     [PredictabilityMode.WindowModerate],
     [PredictabilityMode.WindowWide],
+    [PredictabilityMode.Probabilistic],
+    [PredictabilityMode.Background],
   ])('keeps every %s delay inside the declared window', (mode) => {
     const window = DELAY_WINDOWS[mode];
     for (let seed = 1; seed <= 50; seed++) {

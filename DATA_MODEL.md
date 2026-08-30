@@ -71,8 +71,11 @@ trial timestamps.
   scale). Never expressed as dB SPL.
 - **Predictability ladder:** `user-triggered` → `user-countdown` →
   `auto-countdown` → `window-narrow` (3–5 s) → `window-moderate` (3–10 s) →
-  `window-wide` (≤20 s) → `probabilistic` → `background` (last two are
-  post-MVP).
+  `window-wide` (≤20 s) → `probabilistic` (four balloons, hidden target,
+  3–20 s) → `background` (distraction task, 5–30 s). In the multi-balloon
+  levels every armed trial still produces exactly one acoustic event —
+  "balloons that never pop" are decoys within a trial, so trial accounting
+  stays unambiguous.
 - **Startle and distress are separate 0–10 scales and are never combined
   into a single score anywhere** — storage, algorithm, UI, or export.
 

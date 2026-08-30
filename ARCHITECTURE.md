@@ -46,7 +46,11 @@ src/
     indexedDbRepository.ts  SessionRepository implementation
     exporters.ts            JSON/CSV export (docs/EXPORT_SCHEMA.md)
     download.ts             browser file download helper
-  games/                    (reserved for future game modules, e.g. fireworks)
+  games/
+    balloons/
+      field.ts              multi-balloon field: positions, hidden target,
+                            decoys (probabilistic + background levels)
+      starTask.ts           star-catching distraction task (background level)
   ui/                       React presentation layer
     appContext.ts           service singletons wired once
     styles.css              theme, accessibility, reduced-motion support

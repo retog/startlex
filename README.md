@@ -14,9 +14,11 @@ anticipatory anxiety.
 ## Features (MVP)
 
 - Installable PWA, fully offline after first load (service worker + precache)
-- Balloon Game with graded predictability levels:
+- Balloon Game with the full graded predictability ladder:
   user-triggered pop → user-started 3-2-1 countdown → automatic countdown →
-  randomized onset windows (3–5 s, 3–10 s, up to 20 s)
+  randomized onset windows (3–5 s, 3–10 s, up to 20 s) → probabilistic
+  (four balloons, only a hidden one pops) → background (star-catching
+  distraction task while pops occur on their own)
 - Relative intensity scale (Very soft … Strong) — application amplitude only;
   the system volume is never touched
 - Three synthetic pop sounds, generated in-app (no recordings shipped)
@@ -96,8 +98,8 @@ Updates are picked up automatically on reload and never delete stored data.
 
 - Accounts, login, cloud sync, telemetry, analytics, notifications
 - Realistic gunshot or violence-related sounds and imagery
-- Fireworks game, probabilistic/background predictability levels (7–8),
-  extra sound categories, sound import (architected, not built)
+- Fireworks game, extra sound categories, sound import
+  (architected, not built)
 - Physiological sensing (interface defined, no implementation)
 - Calibrated dB SPL output
 

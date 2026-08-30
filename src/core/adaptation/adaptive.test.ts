@@ -131,6 +131,24 @@ describe('adaptive progression — increase', () => {
     );
   });
 
+  it('advances past window-wide to probabilistic/background when unlocked', () => {
+    const decision = decideProgression(
+      ratedBlock([1, 1, 1], [0, 0, 0]),
+      ctx({
+        current: {
+          intensity: 2,
+          amplitude: intensityToAmplitude(2),
+          predictability: PredictabilityMode.WindowWide,
+          category: 'balloon-pop',
+        },
+        maxIntensity: 2,
+        maxPredictability: PredictabilityMode.Background,
+      }),
+    );
+    expect(decision.action).toBe('increase');
+    expect(decision.next.predictability).toBe(PredictabilityMode.Probabilistic);
+  });
+
   it('changes only one dimension per decision, always', () => {
     for (const last of [null, 'intensity', 'predictability'] as const) {
       const decision = decideProgression(

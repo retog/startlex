@@ -15,8 +15,11 @@ import {
   type UserSettings,
 } from '../../core/types';
 import { repository, scheduler } from '../appContext';
+import { spawnField, targetOf, type FieldBalloon } from '../../games/balloons/field';
+import { StarTask, type TaskItem } from '../../games/balloons/starTask';
 import { Balloon, BALLOON_COLORS } from '../components/Balloon';
 import { RatingScale } from '../components/RatingScale';
+import { TaskShapeButton } from '../components/TaskShape';
 
 type Phase =
   | 'checkin'
@@ -44,9 +47,19 @@ const MODE_HINT: Record<PredictabilityMode, string> = {
   [PredictabilityMode.WindowNarrow]: 'Press Ready — the balloon will pop within 3–5 seconds.',
   [PredictabilityMode.WindowModerate]: 'Press Ready — the balloon will pop within 3–10 seconds.',
   [PredictabilityMode.WindowWide]: 'Press Ready — the balloon will pop at some point within 20 seconds.',
-  [PredictabilityMode.Probabilistic]: 'Some balloons pop, some never do.',
-  [PredictabilityMode.Background]: 'Play the mini-game; pops happen occasionally.',
+  [PredictabilityMode.Probabilistic]:
+    'Press Ready — one of the balloons will pop, but you cannot know which.',
+  [PredictabilityMode.Background]:
+    'Catch the stars! Balloons pop occasionally on their own while you play.',
 };
+
+const FIELD_BALLOON_COUNT = 4;
+
+function isMultiBalloon(mode: PredictabilityMode): boolean {
+  return (
+    mode === PredictabilityMode.Probabilistic || mode === PredictabilityMode.Background
+  );
+}
 
 interface Props {
   settings: UserSettings;
@@ -88,10 +101,18 @@ export function SessionScreen({ settings, onSettingsChange, onExit }: Props) {
   const [previousMeans, setPreviousMeans] = useState<{ startle: number | null; distress: number | null; sessions: number }>({ startle: null, distress: null, sessions: 0 });
   const pauseCountRef = useRef(0);
   const [balloonPos, setBalloonPos] = useState({ x: 0.4, y: 0.35, color: BALLOON_COLORS[0] });
+  const [field, setField] = useState<FieldBalloon[]>([]);
+  const [poppingTargetId, setPoppingTargetId] = useState<string | null>(null);
+  const starTaskRef = useRef<StarTask | null>(null);
+  if (!starTaskRef.current) starTaskRef.current = new StarTask(Math.random);
+  const [stars, setStars] = useState<TaskItem[]>([]);
+  const [starScore, setStarScore] = useState(0);
   const phaseRef = useRef<Phase>('checkin');
   phaseRef.current = phase;
   const sessionRef = useRef<Session | null>(null);
   sessionRef.current = session;
+  const fieldRef = useRef<FieldBalloon[]>([]);
+  fieldRef.current = field;
 
   const newBalloon = useCallback(() => {
     setBalloonPos({
@@ -99,6 +120,13 @@ export function SessionScreen({ settings, onSettingsChange, onExit }: Props) {
       y: 0.15 + Math.random() * 0.45,
       color: BALLOON_COLORS[Math.floor(Math.random() * BALLOON_COLORS.length)],
     });
+    setField(
+      spawnField(Math.random, {
+        count: FIELD_BALLOON_COUNT,
+        colorCount: BALLOON_COLORS.length,
+      }),
+    );
+    setPoppingTargetId(null);
     setPopping(false);
   }, []);
 
@@ -111,6 +139,10 @@ export function SessionScreen({ settings, onSettingsChange, onExit }: Props) {
           break;
         case 'sounded':
           setPopping(true);
+          // In multi-balloon modes only the hidden target bursts.
+          if (fieldRef.current.length > 0) {
+            setPoppingTargetId(targetOf(fieldRef.current).id);
+          }
           setPlan(null);
           break;
         case 'rating-requested':
@@ -190,7 +222,12 @@ export function SessionScreen({ settings, onSettingsChange, onExit }: Props) {
         sessionId: session!.id,
         config,
         trialsPlanned: TRAINING_TRIALS,
-        visualContext: 'balloon-basic',
+        visualContext:
+          config.predictability === PredictabilityMode.Background
+            ? 'balloon-background'
+            : isMultiBalloon(config.predictability)
+              ? 'balloon-field'
+              : 'balloon-basic',
         sampling: { everyNTrials: settings.ratingSamplingEveryNTrials, minGap: 1 },
         strongStimuliBudget: settings.maxStrongStimuliPerSession,
       });
@@ -204,7 +241,7 @@ export function SessionScreen({ settings, onSettingsChange, onExit }: Props) {
         increasesThisSession: 0,
         previousSessionStruggled: settings.progression?.lastSessionStruggled ?? false,
         maxIntensity: settings.maxIntensity,
-        maxPredictability: PredictabilityMode.WindowWide,
+        maxPredictability: PredictabilityMode.Background,
       });
       setDecision(d);
       setPhase('progression');
@@ -216,23 +253,51 @@ export function SessionScreen({ settings, onSettingsChange, onExit }: Props) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [allTrials, phase]);
 
-  /* ---------------- auto-countdown arming ---------------- */
+  /* ------- automatic arming (auto-countdown + background modes) ------- */
   useEffect(() => {
-    if (
-      config.predictability !== PredictabilityMode.AutoCountdown ||
-      phase !== 'training' ||
-      paused !== null ||
-      ratingOpen
-    )
-      return;
+    const auto =
+      config.predictability === PredictabilityMode.AutoCountdown ||
+      config.predictability === PredictabilityMode.Background;
+    if (!auto || phase !== 'training' || paused !== null || ratingOpen) return;
     if (engine.state !== 'running') return;
+    // Background mode varies the inter-trial gap so the next arm is not a cue.
+    const gap =
+      config.predictability === PredictabilityMode.Background
+        ? 1200 + Math.random() * 1800
+        : 1600;
     const t = window.setTimeout(() => {
       if (engine.state === 'running' && document.visibilityState === 'visible') {
         engine.armTrial(false);
       }
-    }, 1600);
+    }, gap);
     return () => window.clearTimeout(t);
   }, [engine, config.predictability, phase, paused, ratingOpen, allTrials]);
+
+  /* ------- star distraction task (background mode only) ------- */
+  const backgroundActive =
+    phase === 'training' &&
+    config.predictability === PredictabilityMode.Background &&
+    paused === null;
+  useEffect(() => {
+    const task = starTaskRef.current!;
+    if (!backgroundActive) {
+      task.reset();
+      setStars([]);
+      return;
+    }
+    const interval = window.setInterval(() => {
+      if (Math.random() < 0.55) task.spawn();
+      setStars(task.current());
+    }, 700);
+    return () => window.clearInterval(interval);
+  }, [backgroundActive]);
+
+  const tapStar = (id: string) => {
+    const task = starTaskRef.current!;
+    task.tap(id);
+    setStarScore(task.score);
+    setStars(task.current());
+  };
 
   /* ---------------- actions ---------------- */
   const beginSession = async () => {
@@ -525,7 +590,37 @@ export function SessionScreen({ settings, onSettingsChange, onExit }: Props) {
       </div>
 
       <div className="game-area">
-        {!popping && plan === null && engine.state !== 'running' ? null : (
+        {isMultiBalloon(activeConfig.predictability) ? (
+          <>
+            {field.map((b) => (
+              <Balloon
+                key={b.id}
+                x={b.x}
+                y={b.y}
+                color={BALLOON_COLORS[b.colorIndex]}
+                popping={poppingTargetId === b.id}
+                onPop={undefined}
+                label="Balloon"
+              />
+            ))}
+            {activeConfig.predictability === PredictabilityMode.Background && (
+              <>
+                <div className="score-badge" aria-live="off">
+                  ⭐ {starScore}
+                </div>
+                {stars.map((item) => (
+                  <TaskShapeButton
+                    key={item.id}
+                    x={item.x}
+                    y={item.y}
+                    shape={item.shape}
+                    onTap={() => tapStar(item.id)}
+                  />
+                ))}
+              </>
+            )}
+          </>
+        ) : !popping && plan === null && engine.state !== 'running' ? null : (
           <Balloon
             x={balloonPos.x}
             y={balloonPos.y}
@@ -547,18 +642,30 @@ export function SessionScreen({ settings, onSettingsChange, onExit }: Props) {
         {plan !== null && countdown !== null && countdown > 0 && (
           <span className="countdown-number">{countdown}</span>
         )}
-        {plan !== null && countdown === null && (
-          <p>
-            Balloon will pop within {plan.windowSec.min}–{plan.windowSec.max} seconds…
-          </p>
-        )}
-        {plan === null && engine.state === 'running' && (
-          <p className="dim">{MODE_HINT[activeConfig.predictability]}</p>
-        )}
+        {plan !== null &&
+          countdown === null &&
+          activeConfig.predictability !== PredictabilityMode.Background && (
+            <p>
+              {activeConfig.predictability === PredictabilityMode.Probabilistic
+                ? `One of the balloons will pop within ${plan.windowSec.min}–${plan.windowSec.max} seconds…`
+                : `Balloon will pop within ${plan.windowSec.min}–${plan.windowSec.max} seconds…`}
+            </p>
+          )}
+        {activeConfig.predictability === PredictabilityMode.Background &&
+          paused === null &&
+          !ratingOpen && (
+            <p className="dim">{MODE_HINT[PredictabilityMode.Background]}</p>
+          )}
+        {plan === null &&
+          engine.state === 'running' &&
+          activeConfig.predictability !== PredictabilityMode.Background && (
+            <p className="dim">{MODE_HINT[activeConfig.predictability]}</p>
+          )}
       </div>
 
       {!activeIsUserMode &&
         activeConfig.predictability !== PredictabilityMode.AutoCountdown &&
+        activeConfig.predictability !== PredictabilityMode.Background &&
         engine.state === 'running' &&
         paused === null &&
         !ratingOpen && (
