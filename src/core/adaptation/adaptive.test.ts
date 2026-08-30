@@ -11,7 +11,9 @@ import {
 
 let trialCounter = 0;
 
-function makeTrial(overrides: Partial<Trial> & { ratings?: Partial<TrialRatings> } = {}): Trial {
+function makeTrial(
+  overrides: Omit<Partial<Trial>, 'ratings'> & { ratings?: Partial<TrialRatings> } = {},
+): Trial {
   trialCounter += 1;
   const { ratings, ...rest } = overrides;
   return {

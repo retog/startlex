@@ -19,9 +19,10 @@ import {
   type IntensityLevel,
   type Trial,
 } from '../types';
+import type { AdaptiveDimension } from '../types';
 import { computeBlockStats, type BlockStats } from './blockStats';
 
-export type AdaptiveDimension = 'intensity' | 'predictability' | 'sound';
+export type { AdaptiveDimension };
 
 export interface AdaptiveContext {
   /** Difficulty the block was run at. */
@@ -90,7 +91,6 @@ export function decideProgression(
   ctx: AdaptiveContext,
 ): AdaptiveDecision {
   const stats = computeBlockStats(trials);
-  const rationale: string[] = [];
   const current = ctx.current;
 
   const abortFraction =

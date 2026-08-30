@@ -197,6 +197,17 @@ export interface PhysiologicalObservation {
   quality: 'good' | 'uncertain' | 'poor' | 'unknown';
 }
 
+/** Which major dimension an adaptive change touched. */
+export type AdaptiveDimension = 'intensity' | 'predictability' | 'sound';
+
+/** Persisted adaptive progression state across sessions. */
+export interface ProgressionState {
+  current: DifficultyConfig;
+  lastIncreasedDimension: AdaptiveDimension | null;
+  /** True when the last session ended with a decrease or interruption. */
+  lastSessionStruggled: boolean;
+}
+
 /** Persisted user settings. */
 export interface UserSettings {
   /** Personal ceiling: the adaptive engine never exceeds this. */
@@ -209,6 +220,8 @@ export interface UserSettings {
   calibrationCompleted: boolean;
   /** Screening answers (advisory only — never a diagnosis). */
   screeningFlags: string[];
+  /** Adaptive progression state; null until the first session. */
+  progression: ProgressionState | null;
 }
 
 export const DEFAULT_SETTINGS: UserSettings = {
@@ -218,6 +231,7 @@ export const DEFAULT_SETTINGS: UserSettings = {
   onboardingCompleted: false,
   calibrationCompleted: false,
   screeningFlags: [],
+  progression: null,
 };
 
 /** Map the coarse 1–5 intensity level to an application amplitude (0..1). */
