@@ -5,11 +5,14 @@ import { decideProgression, type AdaptiveDecision } from '../../core/adaptation/
 import { newId, seededRandom } from '../../core/random';
 import { mean } from '../../core/statistics/descriptive';
 import {
+  CATEGORY_LABELS,
   INTENSITY_LABELS,
   PredictabilityMode,
+  SOUND_LADDER,
   intensityToAmplitude,
   type DifficultyConfig,
   type Session,
+  type StimulusCategory,
   type Trial,
   type TrialRatings,
   type UserSettings,
@@ -18,6 +21,7 @@ import { repository, scheduler } from '../appContext';
 import { spawnField, targetOf, type FieldBalloon } from '../../games/balloons/field';
 import { StarTask, type TaskItem } from '../../games/balloons/starTask';
 import { Balloon, BALLOON_COLORS } from '../components/Balloon';
+import { ContextVisual, type VisualState } from '../components/ContextVisual';
 import { RatingScale } from '../components/RatingScale';
 import { TaskShapeButton } from '../components/TaskShape';
 
@@ -40,22 +44,61 @@ const EASY_CONFIG: DifficultyConfig = {
   category: 'balloon-pop',
 };
 
-const MODE_HINT: Record<PredictabilityMode, string> = {
-  [PredictabilityMode.UserTriggered]: 'Tap the balloon to pop it — the pop happens right away.',
-  [PredictabilityMode.UserCountdown]: 'Tap the balloon to start a 3-2-1 countdown, then it pops.',
-  [PredictabilityMode.AutoCountdown]: 'The balloon starts its own countdown, then pops.',
-  [PredictabilityMode.WindowNarrow]: 'Press Ready — the balloon will pop within 3–5 seconds.',
-  [PredictabilityMode.WindowModerate]: 'Press Ready — the balloon will pop within 3–10 seconds.',
-  [PredictabilityMode.WindowWide]: 'Press Ready — the balloon will pop at some point within 20 seconds.',
-  [PredictabilityMode.Probabilistic]:
-    'Press Ready — one of the balloons will pop, but you cannot know which.',
-  [PredictabilityMode.Background]:
-    'Catch the stars! Balloons pop occasionally on their own while you play.',
+/** Per-category wording so hints match the visual context. */
+const CATEGORY_WORDS: Record<
+  string,
+  { noun: string; trigger: string; event: string }
+> = {
+  'balloon-pop': { noun: 'balloon', trigger: 'pop', event: 'pop' },
+  'door-closing': { noun: 'door', trigger: 'close', event: 'close' },
+  'dropped-light-object': { noun: 'object', trigger: 'drop', event: 'drop' },
+  'distant-firework': { noun: 'firework', trigger: 'launch', event: 'burst' },
 };
+
+function words(category: StimulusCategory) {
+  return CATEGORY_WORDS[category] ?? CATEGORY_WORDS['balloon-pop'];
+}
+
+function modeHint(mode: PredictabilityMode, category: StimulusCategory): string {
+  const w = words(category);
+  switch (mode) {
+    case PredictabilityMode.UserTriggered:
+      return `Tap the ${w.noun} to ${w.trigger} it — the sound happens right away.`;
+    case PredictabilityMode.UserCountdown:
+      return `Tap the ${w.noun} to start a 3-2-1 countdown, then it ${w.event}s.`;
+    case PredictabilityMode.AutoCountdown:
+      return `A countdown starts on its own, then the ${w.noun} ${w.event}s.`;
+    case PredictabilityMode.WindowNarrow:
+      return `Press Ready — the ${w.noun} will ${w.event} within 3–5 seconds.`;
+    case PredictabilityMode.WindowModerate:
+      return `Press Ready — the ${w.noun} will ${w.event} within 3–10 seconds.`;
+    case PredictabilityMode.WindowWide:
+      return `Press Ready — the ${w.noun} will ${w.event} at some point within 20 seconds.`;
+    case PredictabilityMode.Probabilistic:
+      return category === 'balloon-pop'
+        ? 'Press Ready — one of the balloons will pop, but you cannot know which.'
+        : `Press Ready — the ${w.noun} will ${w.event} at an unpredictable moment.`;
+    case PredictabilityMode.Background:
+      return 'Catch the stars! Sounds happen occasionally on their own while you play.';
+  }
+}
+
+function onsetMessage(
+  category: StimulusCategory,
+  min: number,
+  max: number,
+  probabilistic: boolean,
+): string {
+  const w = words(category);
+  if (probabilistic && category === 'balloon-pop') {
+    return `One of the balloons will pop within ${min}–${max} seconds…`;
+  }
+  return `The ${w.noun} will ${w.event} within ${min}–${max} seconds…`;
+}
 
 const FIELD_BALLOON_COUNT = 4;
 
-function isMultiBalloon(mode: PredictabilityMode): boolean {
+function isMultiMode(mode: PredictabilityMode): boolean {
   return (
     mode === PredictabilityMode.Probabilistic || mode === PredictabilityMode.Background
   );
@@ -187,7 +230,8 @@ export function SessionScreen({ settings, onSettingsChange, onExit }: Props) {
         const isCountdown =
           plan.predictability === PredictabilityMode.UserCountdown ||
           plan.predictability === PredictabilityMode.AutoCountdown;
-        setCountdown(isCountdown ? Math.max(0, Math.ceil(remaining)) : null);
+        // Clamp to 3 so the 50 ms scheduling lead never flashes a "4".
+        setCountdown(isCountdown ? Math.min(3, Math.max(0, Math.ceil(remaining))) : null);
       } else {
         setCountdown(null);
       }
@@ -224,10 +268,10 @@ export function SessionScreen({ settings, onSettingsChange, onExit }: Props) {
         trialsPlanned: TRAINING_TRIALS,
         visualContext:
           config.predictability === PredictabilityMode.Background
-            ? 'balloon-background'
-            : isMultiBalloon(config.predictability)
+            ? `${config.category}-background`
+            : isMultiMode(config.predictability) && config.category === 'balloon-pop'
               ? 'balloon-field'
-              : 'balloon-basic',
+              : `${config.category}-basic`,
         sampling: { everyNTrials: settings.ratingSamplingEveryNTrials, minGap: 1 },
         strongStimuliBudget: settings.maxStrongStimuliPerSession,
       });
@@ -242,6 +286,7 @@ export function SessionScreen({ settings, onSettingsChange, onExit }: Props) {
         previousSessionStruggled: settings.progression?.lastSessionStruggled ?? false,
         maxIntensity: settings.maxIntensity,
         maxPredictability: PredictabilityMode.Background,
+        soundLadder: SOUND_LADDER,
       });
       setDecision(d);
       setPhase('progression');
@@ -428,14 +473,30 @@ export function SessionScreen({ settings, onSettingsChange, onExit }: Props) {
         <div className="card">
           <p>
             Today's level: <strong>{INTENSITY_LABELS[config.intensity]}</strong> sound,{' '}
-            <strong>{MODE_HINT[config.predictability]}</strong>
+            <strong>{modeHint(config.predictability, config.category)}</strong>
           </p>
+          <label className="field">
+            <span>Sound &amp; scene</span>
+            <select
+              value={config.category}
+              onChange={(e) =>
+                setConfig({ ...config, category: e.target.value as StimulusCategory })
+              }
+            >
+              {SOUND_LADDER.map((c) => (
+                <option key={c} value={c}>
+                  {CATEGORY_LABELS[c] ?? c}
+                </option>
+              ))}
+            </select>
+          </label>
           <div className="btn-row">
             <button
               onClick={() => setConfig(EASY_CONFIG)}
               disabled={
                 config.intensity === EASY_CONFIG.intensity &&
-                config.predictability === EASY_CONFIG.predictability
+                config.predictability === EASY_CONFIG.predictability &&
+                config.category === EASY_CONFIG.category
               }
             >
               Use easiest level instead
@@ -476,8 +537,11 @@ export function SessionScreen({ settings, onSettingsChange, onExit }: Props) {
             ))}
           </ul>
           <p>
-            Next level would be: <strong>{INTENSITY_LABELS[decision.next.intensity]}</strong>,{' '}
-            {MODE_HINT[decision.next.predictability]}
+            Next level would be:{' '}
+            <strong>{INTENSITY_LABELS[decision.next.intensity]}</strong>{' '}
+            {(CATEGORY_LABELS[decision.next.category] ?? decision.next.category).toLowerCase()}
+            {' — '}
+            {modeHint(decision.next.predictability, decision.next.category)}
           </p>
         </div>
         <div className="btn-row">
@@ -572,6 +636,16 @@ export function SessionScreen({ settings, onSettingsChange, onExit }: Props) {
   const activeIsUserMode =
     activeConfig.predictability === PredictabilityMode.UserTriggered ||
     activeConfig.predictability === PredictabilityMode.UserCountdown;
+  // Balloon fields only exist for the balloon category; other categories use
+  // their single context visual even at the probabilistic/background levels.
+  const showField =
+    isMultiMode(activeConfig.predictability) && activeConfig.category === 'balloon-pop';
+  const visualState: VisualState = popping
+    ? 'burst'
+    : plan !== null
+      ? 'waiting'
+      : 'idle';
+  const w = words(activeConfig.category);
 
   return (
     <main className="screen">
@@ -589,8 +663,28 @@ export function SessionScreen({ settings, onSettingsChange, onExit }: Props) {
         </div>
       </div>
 
-      <div className="game-area">
-        {isMultiBalloon(activeConfig.predictability) ? (
+      <div
+        className={`game-area${
+          activeConfig.category === 'distant-firework' ? ' night-sky' : ''
+        }`}
+      >
+        {activeConfig.predictability === PredictabilityMode.Background && (
+          <>
+            <div className="score-badge" aria-live="off">
+              ⭐ {starScore}
+            </div>
+            {stars.map((item) => (
+              <TaskShapeButton
+                key={item.id}
+                x={item.x}
+                y={item.y}
+                shape={item.shape}
+                onTap={() => tapStar(item.id)}
+              />
+            ))}
+          </>
+        )}
+        {showField ? (
           <>
             {field.map((b) => (
               <Balloon
@@ -603,36 +697,25 @@ export function SessionScreen({ settings, onSettingsChange, onExit }: Props) {
                 label="Balloon"
               />
             ))}
-            {activeConfig.predictability === PredictabilityMode.Background && (
-              <>
-                <div className="score-badge" aria-live="off">
-                  ⭐ {starScore}
-                </div>
-                {stars.map((item) => (
-                  <TaskShapeButton
-                    key={item.id}
-                    x={item.x}
-                    y={item.y}
-                    shape={item.shape}
-                    onTap={() => tapStar(item.id)}
-                  />
-                ))}
-              </>
-            )}
           </>
         ) : !popping && plan === null && engine.state !== 'running' ? null : (
-          <Balloon
+          <ContextVisual
+            category={activeConfig.category}
+            state={visualState}
             x={balloonPos.x}
             y={balloonPos.y}
             color={balloonPos.color}
-            popping={popping}
-            onPop={activeIsUserMode && canInteract ? armFromBalloon : undefined}
+            onTrigger={
+              activeIsUserMode && canInteract && visualState === 'idle'
+                ? armFromBalloon
+                : undefined
+            }
             label={
               activeConfig.predictability === PredictabilityMode.UserTriggered
-                ? 'Pop the balloon'
+                ? `Tap to ${w.trigger} the ${w.noun}`
                 : activeConfig.predictability === PredictabilityMode.UserCountdown
-                  ? 'Start the countdown to pop this balloon'
-                  : 'Balloon'
+                  ? `Start the countdown for this ${w.noun}`
+                  : `The ${w.noun}`
             }
           />
         )}
@@ -646,20 +729,27 @@ export function SessionScreen({ settings, onSettingsChange, onExit }: Props) {
           countdown === null &&
           activeConfig.predictability !== PredictabilityMode.Background && (
             <p>
-              {activeConfig.predictability === PredictabilityMode.Probabilistic
-                ? `One of the balloons will pop within ${plan.windowSec.min}–${plan.windowSec.max} seconds…`
-                : `Balloon will pop within ${plan.windowSec.min}–${plan.windowSec.max} seconds…`}
+              {onsetMessage(
+                activeConfig.category,
+                plan.windowSec.min,
+                plan.windowSec.max,
+                activeConfig.predictability === PredictabilityMode.Probabilistic,
+              )}
             </p>
           )}
         {activeConfig.predictability === PredictabilityMode.Background &&
           paused === null &&
           !ratingOpen && (
-            <p className="dim">{MODE_HINT[PredictabilityMode.Background]}</p>
+            <p className="dim">
+              {modeHint(PredictabilityMode.Background, activeConfig.category)}
+            </p>
           )}
         {plan === null &&
           engine.state === 'running' &&
           activeConfig.predictability !== PredictabilityMode.Background && (
-            <p className="dim">{MODE_HINT[activeConfig.predictability]}</p>
+            <p className="dim">
+              {modeHint(activeConfig.predictability, activeConfig.category)}
+            </p>
           )}
       </div>
 
@@ -678,7 +768,7 @@ export function SessionScreen({ settings, onSettingsChange, onExit }: Props) {
 
       {isUserMode && phase === 'training' && (
         <p className="dim small" style={{ textAlign: 'center' }}>
-          You decide when each pop happens.
+          You decide when each sound happens.
         </p>
       )}
 

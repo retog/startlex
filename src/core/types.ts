@@ -86,6 +86,26 @@ export type StimulusCategory =
 
 export type StimulusSourceKind = 'synthetic' | 'recorded' | 'imported';
 
+/** User-facing labels for the categories currently shipped. */
+export const CATEGORY_LABELS: Partial<Record<StimulusCategory, string>> = {
+  'balloon-pop': 'Balloons',
+  'door-closing': 'Door closing',
+  'dropped-light-object': 'Dropped object',
+  'distant-firework': 'Distant fireworks',
+};
+
+/**
+ * Order in which the adaptive engine introduces new sound categories
+ * ("keep intensity and timing constant, introduce a different sound").
+ * Not a loudness ladder — variety for generalization.
+ */
+export const SOUND_LADDER: StimulusCategory[] = [
+  'balloon-pop',
+  'door-closing',
+  'dropped-light-object',
+  'distant-firework',
+];
+
 export interface Stimulus {
   id: string;
   category: StimulusCategory;

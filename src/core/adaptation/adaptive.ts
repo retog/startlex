@@ -17,6 +17,7 @@ import {
   predictabilityRank,
   type DifficultyConfig,
   type IntensityLevel,
+  type StimulusCategory,
   type Trial,
 } from '../types';
 import type { AdaptiveDimension } from '../types';
@@ -41,6 +42,12 @@ export interface AdaptiveContext {
   maxIntensity: IntensityLevel;
   /** Highest predictability level currently unlocked by the app build. */
   maxPredictability: PredictabilityMode;
+  /**
+   * Ordered sound categories the engine may introduce ("keep intensity and
+   * timing constant, introduce a different sound"). Omit or leave empty to
+   * disable the sound dimension.
+   */
+  soundLadder?: StimulusCategory[];
 }
 
 export interface AdaptiveDecision {
@@ -171,12 +178,24 @@ export function decideProgression(
   };
 }
 
+function soundRank(ctx: AdaptiveContext, category: StimulusCategory): number {
+  return (ctx.soundLadder ?? []).indexOf(category);
+}
+
+function nextSound(ctx: AdaptiveContext, current: DifficultyConfig): StimulusCategory | null {
+  const ladder = ctx.soundLadder ?? [];
+  const rank = ladder.indexOf(current.category);
+  if (rank === -1 || rank + 1 >= ladder.length) return null;
+  return ladder[rank + 1];
+}
+
 /**
  * Pick the single dimension to raise. Control is reduced before loudness:
- * predictability advances first; once at the unlocked predictability cap,
- * intensity advances (never above the user's ceiling). The dimension raised
- * last time is avoided when an alternative is available, so successive
- * changes alternate and stay interpretable.
+ * predictability advances first; once the rotation has touched intensity, a
+ * new sound category may be introduced with loudness and timing unchanged.
+ * The dimension raised last time is avoided when an alternative is
+ * available, so successive changes alternate and stay interpretable.
+ * Rotation: predictability → intensity → sound → predictability → …
  */
 function raiseOneDimension(
   current: DifficultyConfig,
@@ -186,31 +205,32 @@ function raiseOneDimension(
     predictabilityRank(current.predictability) <
     predictabilityRank(ctx.maxPredictability);
   const canRaiseIntensity = current.intensity < ctx.maxIntensity;
+  const newSound = nextSound(ctx, current);
 
-  const preferIntensity =
-    ctx.lastIncreasedDimension === 'predictability' && canRaiseIntensity;
+  const raisePredictability = () => ({
+    dimension: 'predictability' as const,
+    next: { ...current, predictability: stepPredictability(current.predictability, 1) },
+    note: 'keeping loudness the same and making timing slightly less predictable',
+  });
+  const raiseIntensity = () => ({
+    dimension: 'intensity' as const,
+    next: withIntensity(current, stepIntensity(current.intensity, 1)),
+    note: 'keeping timing the same and making the sound slightly stronger',
+  });
+  const raiseSound = (category: StimulusCategory) => ({
+    dimension: 'sound' as const,
+    next: { ...current, category },
+    note: 'keeping loudness and timing the same and introducing a different sound',
+  });
 
-  if (canRaisePredictability && !preferIntensity) {
-    return {
-      dimension: 'predictability',
-      next: { ...current, predictability: stepPredictability(current.predictability, 1) },
-      note: 'keeping loudness the same and making timing slightly less predictable',
-    };
-  }
-  if (canRaiseIntensity) {
-    return {
-      dimension: 'intensity',
-      next: withIntensity(current, stepIntensity(current.intensity, 1)),
-      note: 'keeping timing the same and making the sound slightly stronger',
-    };
-  }
-  if (canRaisePredictability) {
-    return {
-      dimension: 'predictability',
-      next: { ...current, predictability: stepPredictability(current.predictability, 1) },
-      note: 'keeping loudness the same and making timing slightly less predictable',
-    };
-  }
+  // Continue the rotation from the last increased dimension.
+  if (ctx.lastIncreasedDimension === 'predictability' && canRaiseIntensity)
+    return raiseIntensity();
+  if (ctx.lastIncreasedDimension === 'intensity' && newSound !== null)
+    return raiseSound(newSound);
+  if (canRaisePredictability) return raisePredictability();
+  if (canRaiseIntensity) return raiseIntensity();
+  if (newSound !== null) return raiseSound(newSound);
   return null;
 }
 
@@ -233,6 +253,12 @@ function easeOneDimension(
     note: 'easing back to a softer sound',
   });
 
+  const easeSound = (category: StimulusCategory) => ({
+    dimension: 'sound' as const,
+    next: { ...current, category },
+    note: 'returning to the more familiar sound',
+  });
+
   if (ctx.lastIncreasedDimension === 'intensity' && current.intensity > 1)
     return easeIntensity();
   if (
@@ -240,6 +266,10 @@ function easeOneDimension(
     predictabilityRank(current.predictability) > 0
   )
     return easePredictability();
+  if (ctx.lastIncreasedDimension === 'sound') {
+    const rank = soundRank(ctx, current.category);
+    if (rank > 0) return easeSound((ctx.soundLadder ?? [])[rank - 1]);
+  }
   // No recent increase to revert: ease the further-advanced dimension.
   if (predictabilityRank(current.predictability) >= current.intensity - 1 &&
       predictabilityRank(current.predictability) > 0)

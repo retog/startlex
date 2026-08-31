@@ -149,6 +149,85 @@ describe('adaptive progression — increase', () => {
     expect(decision.next.predictability).toBe(PredictabilityMode.Probabilistic);
   });
 
+  it('introduces a new sound after an intensity increase (rotation), keeping loudness and timing constant', () => {
+    const decision = decideProgression(
+      ratedBlock([1, 1, 1], [0, 0, 0]),
+      ctx({
+        lastIncreasedDimension: 'intensity',
+        soundLadder: ['balloon-pop', 'door-closing', 'dropped-light-object'],
+      }),
+    );
+    expect(decision.action).toBe('increase');
+    expect(decision.dimension).toBe('sound');
+    expect(decision.next.category).toBe('door-closing');
+    expect(decision.next.intensity).toBe(2);
+    expect(decision.next.predictability).toBe(PredictabilityMode.UserCountdown);
+  });
+
+  it('without a sound ladder the sound dimension never fires', () => {
+    const decision = decideProgression(
+      ratedBlock([1, 1, 1], [0, 0, 0]),
+      ctx({ lastIncreasedDimension: 'intensity' }),
+    );
+    expect(decision.next.category).toBe('balloon-pop');
+  });
+
+  it('falls back to the sound dimension when both other caps are reached', () => {
+    const decision = decideProgression(
+      ratedBlock([1, 1, 1], [0, 0, 0]),
+      ctx({
+        current: {
+          intensity: 3,
+          amplitude: intensityToAmplitude(3),
+          predictability: PredictabilityMode.WindowWide,
+          category: 'balloon-pop',
+        },
+        maxIntensity: 3,
+        soundLadder: ['balloon-pop', 'door-closing'],
+      }),
+    );
+    expect(decision.action).toBe('increase');
+    expect(decision.dimension).toBe('sound');
+    expect(decision.next.category).toBe('door-closing');
+  });
+
+  it('holds at the end of the sound ladder with other caps reached', () => {
+    const decision = decideProgression(
+      ratedBlock([1, 1, 1], [0, 0, 0]),
+      ctx({
+        current: {
+          intensity: 3,
+          amplitude: intensityToAmplitude(3),
+          predictability: PredictabilityMode.WindowWide,
+          category: 'door-closing',
+        },
+        maxIntensity: 3,
+        soundLadder: ['balloon-pop', 'door-closing'],
+      }),
+    );
+    expect(decision.action).toBe('hold');
+  });
+
+  it('a struggling block after a sound increase reverts to the familiar sound', () => {
+    const decision = decideProgression(
+      ratedBlock([5, 6, 6], [8, 8, 7], { stimulusCategory: 'door-closing' }),
+      ctx({
+        current: {
+          intensity: 2,
+          amplitude: intensityToAmplitude(2),
+          predictability: PredictabilityMode.UserCountdown,
+          category: 'door-closing',
+        },
+        lastIncreasedDimension: 'sound',
+        soundLadder: ['balloon-pop', 'door-closing'],
+      }),
+    );
+    expect(decision.action).toBe('decrease');
+    expect(decision.dimension).toBe('sound');
+    expect(decision.next.category).toBe('balloon-pop');
+    expect(decision.next.intensity).toBe(2);
+  });
+
   it('changes only one dimension per decision, always', () => {
     for (const last of [null, 'intensity', 'predictability'] as const) {
       const decision = decideProgression(

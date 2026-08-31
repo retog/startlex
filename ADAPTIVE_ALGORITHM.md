@@ -60,17 +60,25 @@ never punished further.
 
 ### 3. Increase — otherwise:
 
-Ratings were low and stable. Exactly one dimension steps up:
+Ratings were low and stable. Exactly one dimension steps up, following the
+rotation **predictability → intensity → sound → predictability → …**:
 
 - **Predictability first** ("control before loudness"): while below the
   unlocked predictability cap, timing becomes one step less predictable and
   loudness stays put.
-- **Alternation:** if the last increase was predictability and intensity has
-  headroom, intensity steps up instead — successive changes alternate so
-  effects remain attributable.
+- **Then intensity:** after a predictability increase, intensity steps up
+  next (if it has headroom) — successive changes alternate so effects
+  remain attributable.
+- **Then sound:** after an intensity increase, the next unexplored category
+  from the sound ladder (balloons → door → dropped object → distant
+  fireworks) is introduced with loudness and timing unchanged. The ladder
+  is variety for generalization, not a loudness ordering.
 - **Ceilings:** intensity never exceeds the user's personal maximum;
-  predictability never exceeds the unlocked cap. At both ceilings the
-  decision is a hold.
+  predictability never exceeds the unlocked cap; the sound ladder ends at
+  its last category. With every dimension at its cap the decision is a hold.
+
+Easing reverts the most recently increased dimension — including a sound
+introduction, which returns to the previous, more familiar category.
 
 Amplitude is always derived from the intensity level via the fixed mapping
 (`intensityToAmplitude`), so an intensity change is exactly one step on the

@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import type { Screen } from '../../App';
+import { InstallBanner } from '../components/InstallBanner';
 
 export function HomeScreen({ onNavigate }: { onNavigate(screen: Screen): void }) {
   const [online, setOnline] = useState(navigator.onLine);
@@ -25,6 +26,7 @@ export function HomeScreen({ onNavigate }: { onNavigate(screen: Screen): void })
           {online ? 'online' : 'offline — everything still works'}
         </span>
       </p>
+      <InstallBanner />
       <nav className="home-nav" aria-label="Main">
         <button className="btn-primary" onClick={() => onNavigate('session')}>
           <span className="title">Start training session</span>
