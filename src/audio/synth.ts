@@ -31,6 +31,11 @@ export interface PopParams {
   attackSec: number;
   /** Seed for the deterministic noise source. */
   seed: number;
+  /**
+   * Optional delayed, attenuated copy of the impulse — a bounce (dropped
+   * object), latch click (door), or echo (distant firework).
+   */
+  secondTransient?: { delaySec: number; gain: number };
 }
 
 /** Two-pole resonant band-pass filter (constant-skirt biquad). */
@@ -62,7 +67,8 @@ function mulberry(seed: number): RandomFn {
   };
 }
 
-export function synthesizePop(params: PopParams, sampleRate = 44100): Float32Array {
+/** Render the single impulse (noise burst + body) without post-processing. */
+function renderImpulse(params: PopParams, sampleRate: number): Float32Array {
   const n = Math.max(1, Math.round(params.durationSec * sampleRate));
   const out = new Float32Array(n);
   const rng = mulberry(params.seed);
@@ -79,6 +85,21 @@ export function synthesizePop(params: PopParams, sampleRate = 44100): Float32Arr
       Math.exp(-t / params.bodyDecaySec) *
       params.bodyMix;
     out[i] = attack * (filtered + body);
+  }
+  return out;
+}
+
+export function synthesizePop(params: PopParams, sampleRate = 44100): Float32Array {
+  const impulse = renderImpulse(params, sampleRate);
+  const second = params.secondTransient;
+  const delaySamples = second ? Math.round(second.delaySec * sampleRate) : 0;
+  const n = impulse.length + delaySamples;
+  const out = new Float32Array(n);
+  out.set(impulse, 0);
+  if (second) {
+    for (let i = 0; i < impulse.length; i++) {
+      out[i + delaySamples] += impulse[i] * second.gain;
+    }
   }
 
   // Normalize to peak 1.0; application amplitude is applied later via gain.

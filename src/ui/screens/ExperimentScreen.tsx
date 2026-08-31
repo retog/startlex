@@ -147,7 +147,7 @@ export function ExperimentScreen({ settings, onExit }: Props) {
       engine.tick();
       const remaining = engine.timeToOnset();
       if (remaining !== null && plan?.predictability === PredictabilityMode.UserCountdown) {
-        setCountdown(Math.max(0, Math.ceil(remaining)));
+        setCountdown(Math.min(3, Math.max(0, Math.ceil(remaining))));
       } else {
         setCountdown(null);
       }

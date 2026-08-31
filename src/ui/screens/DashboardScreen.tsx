@@ -13,6 +13,7 @@ import {
 } from 'recharts';
 import { groupBy, habituation, mean } from '../../core/statistics/descriptive';
 import {
+  CATEGORY_LABELS,
   INTENSITY_LABELS,
   RECOVERY_BUCKET_SECONDS,
   type IntensityLevel,
@@ -108,6 +109,21 @@ export function DashboardScreen({ onExit }: Props) {
       const distress = ratedOf(own, 'distress');
       return {
         label: PREDICTABILITY_SHORT[mode] ?? mode,
+        meanStartle: mean(startle),
+        meanDistress: mean(distress),
+        n: Math.max(startle.length, distress.length),
+      };
+    }).filter((d) => d.n > 0);
+  }, [trials]);
+
+  const byCategory = useMemo(() => {
+    const completed = trials.filter((t) => t.outcome === 'completed');
+    const groups = groupBy(completed, (t) => t.stimulusCategory);
+    return [...groups.entries()].map(([category, own]) => {
+      const startle = ratedOf(own, 'startle');
+      const distress = ratedOf(own, 'distress');
+      return {
+        label: CATEGORY_LABELS[category] ?? category,
         meanStartle: mean(startle),
         meanDistress: mean(distress),
         n: Math.max(startle.length, distress.length),
@@ -233,6 +249,29 @@ export function DashboardScreen({ onExit }: Props) {
                 formatter={(v: number) => v?.toFixed?.(1)}
                 labelFormatter={(label) => {
                   const d = byIntensity.find((x) => x.label === label);
+                  return d ? `${label} (n=${d.n})` : label;
+                }}
+              />
+              <Legend />
+              <Bar dataKey="meanStartle" name="Startle" fill="#7aa7ff" />
+              <Bar dataKey="meanDistress" name="Distress" fill="#ff8fa3" />
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+      )}
+
+      {byCategory.length > 1 && (
+        <div className="chart-block card">
+          <h3>Response by sound category</h3>
+          <ResponsiveContainer width="100%" height={220}>
+            <BarChart data={byCategory}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#3a4370" />
+              <XAxis dataKey="label" {...AXIS} />
+              <YAxis domain={[0, 10]} {...AXIS} />
+              <Tooltip
+                formatter={(v: number) => v?.toFixed?.(1)}
+                labelFormatter={(label) => {
+                  const d = byCategory.find((x) => x.label === label);
                   return d ? `${label} (n=${d.n})` : label;
                 }}
               />

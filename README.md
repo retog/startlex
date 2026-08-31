@@ -21,7 +21,14 @@ anticipatory anxiety.
   distraction task while pops occur on their own)
 - Relative intensity scale (Very soft … Strong) — application amplitude only;
   the system volume is never touched
-- Three synthetic pop sounds, generated in-app (no recordings shipped)
+- Four sound contexts, all synthesized in-app (no recordings shipped):
+  balloons, door closing, dropped object, and distant fireworks — each with
+  its own visual scene (balloon field, abstract impulse orb, night sky with
+  a user-launched firework)
+- The adaptive engine rotates predictability → intensity → sound, so a new
+  sound category is introduced with loudness and timing unchanged
+- Prominent install banner (browser install prompt on Chromium/Android,
+  Add-to-Home-Screen steps on iOS)
 - Web Audio API scheduling (audio-clock precision, preloaded buffers)
 - Session structure: check-in → warm-up → training → progression suggestion →
   cool-down → summary
@@ -113,8 +120,7 @@ Updates are picked up automatically on reload and never delete stored data.
 
 - Accounts, login, cloud sync, telemetry, analytics, notifications
 - Realistic gunshot or violence-related sounds and imagery
-- Fireworks game, extra sound categories, sound import
-  (architected, not built)
+- Importing user sound files (architected, not built)
 - Physiological sensing (interface defined, no implementation)
 - Calibrated dB SPL output
 
