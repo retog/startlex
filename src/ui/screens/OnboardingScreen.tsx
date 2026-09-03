@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useScrollReset } from '../useScrollReset';
 import type { UserSettings } from '../../core/types';
 
 const SCREENING_ITEMS: Array<{ id: string; label: string }> = [
@@ -21,6 +22,7 @@ interface Props {
 
 export function OnboardingScreen({ settings, onComplete }: Props) {
   const [step, setStep] = useState<'intro' | 'screening' | 'advice'>('intro');
+  useScrollReset(step);
   const [flags, setFlags] = useState<string[]>(settings.screeningFlags);
 
   const toggle = (id: string) =>

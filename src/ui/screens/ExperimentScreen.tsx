@@ -21,6 +21,7 @@ import {
 import { repository, scheduler } from '../appContext';
 import { Balloon, BALLOON_COLORS } from '../components/Balloon';
 import { RatingScale } from '../components/RatingScale';
+import { useScrollReset } from '../useScrollReset';
 
 const TRIALS_PER_RUN = 8; // 2 balanced blocks of the 4 conditions
 
@@ -42,6 +43,7 @@ export function ExperimentScreen({ settings, onExit }: Props) {
   const specs = conditionSpecs(design);
 
   const [stage, setStage] = useState<'intro' | 'running' | 'results'>('intro');
+  useScrollReset(stage);
   const [sequence, setSequence] = useState<ExperimentCondition[]>([]);
   const [index, setIndex] = useState(0);
   const [session, setSession] = useState<Session | null>(null);
