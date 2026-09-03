@@ -23,6 +23,7 @@ import { StarTask, type TaskItem } from '../../games/balloons/starTask';
 import { Balloon, BALLOON_COLORS } from '../components/Balloon';
 import { ContextVisual, type VisualState } from '../components/ContextVisual';
 import { RatingScale } from '../components/RatingScale';
+import { useScrollReset } from '../useScrollReset';
 import { TaskShapeButton } from '../components/TaskShape';
 
 type Phase =
@@ -126,6 +127,8 @@ export function SessionScreen({ settings, onSettingsChange, onExit }: Props) {
   const engine = engineRef.current;
 
   const [phase, setPhase] = useState<Phase>('checkin');
+  // Check-in, training, progression and summary are separate views.
+  useScrollReset(phase);
   const [anxiety, setAnxiety] = useState<number | null>(null);
   const [note, setNote] = useState('');
   const [session, setSession] = useState<Session | null>(null);

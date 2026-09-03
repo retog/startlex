@@ -1,4 +1,5 @@
 import { lazy, Suspense, useEffect, useState } from 'react';
+import { useScrollReset } from './ui/useScrollReset';
 import { DEFAULT_SETTINGS, type UserSettings } from './core/types';
 import { closeInterruptedSessions } from './core/session/recovery';
 import { repository } from './ui/appContext';
@@ -26,6 +27,8 @@ export type Screen =
 export default function App() {
   const [screen, setScreen] = useState<Screen | null>(null);
   const [settings, setSettings] = useState<UserSettings>(DEFAULT_SETTINGS);
+  // Each screen opens at its top instead of inheriting the last scroll offset.
+  useScrollReset(screen);
 
   useEffect(() => {
     let cancelled = false;
